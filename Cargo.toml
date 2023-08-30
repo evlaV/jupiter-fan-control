@@ -1,0 +1,12 @@
+[package]
+name = "fancontrol"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "fancontrol"
+path = "src/main.rs"
+
+[dependencies]
+libc = "0.2"
+toml = "0.5"
