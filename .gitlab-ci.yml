@@ -1,22 +1,22 @@
-# need group-hardware tag to access shared runner
+# need group-jupiter tag to access shared runner
 
 build-job:
   tags:
-      - group-hardware
+      - group-jupiter
   stage: build
   script:
     - echo "Hello, $GITLAB_USER_LOGIN!"
 
 test-job1:
   tags:
-      - group-hardware
+      - group-jupiter
   stage: test
   script:
     - echo "This job tests something"
 
 test-job2:
   tags:
-      - group-hardware
+      - group-jupiter
   stage: test
   script:
     - echo "This job tests something, but takes more time than test-job1."
@@ -26,7 +26,7 @@ test-job2:
 
 deploy-prod:
   tags:
-      - group-hardware
+      - group-jupiter
   stage: deploy
   script:
     - echo "This job deploys something from the $CI_COMMIT_BRANCH branch."
