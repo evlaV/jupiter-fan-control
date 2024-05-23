@@ -524,8 +524,6 @@ class FanController:
             self.slow_loop_interval,
         )
 
-        self.initialize_log_file()
-
         # exit handler
         signal.signal(signal.SIGTERM, self.on_exit)
 
@@ -624,7 +622,8 @@ class FanController:
 
     def loop_control(self):
         """main control loop"""
-        
+
+        self.initialize_log_file()
         print("jupiter-fan-control started successfully.")
         while True:
             fan_error = abs(self.fan.fc_speed - self.fan.get_speed())
