@@ -9,6 +9,7 @@ import time
 import math
 import yaml
 import csv
+import logging
 import argparse
 from PID import PID
 
@@ -482,6 +483,8 @@ def get_full_path(base_path, name) -> str:
 
 class FanController:
     """main FanController class"""
+    LOG_FILE_PATH = Path("/var/log/jupiter-fan-control.log")
+    LOG_FILE_MAX_SIZE = 2**20 
 
     def __init__(self, config_file, dmi: DmiId):
         """constructor"""
@@ -493,25 +496,15 @@ class FanController:
                 print("error loading config file \n", exc)
                 exit(1)
 
-        # store global parameters
+        # store global parameters from config
         self.base_hwmon_path = self.config["base_hwmon_path"]
         self.fast_loop_interval = self.config["fast_loop_interval"]
         self.slow_loop_interval = self.config["slow_loop_interval"]
         self.control_loop_ratio = self.config["control_loop_ratio"]
         self.log_write_ratio = self.config["log_write_ratio"]
-
-        # initialize fan
-        try:
-            fan_path = get_full_path(
-                self.base_hwmon_path, self.config["fan_hwmon_name"]
-            )
-        except FileNotFoundError:
-            fan_path = get_full_path(
-                self.base_hwmon_path, self.config["fan_hwmon_name_alt"]
-            )
-        finally:
-            self.fan = Fan(fan_path, self.config, dmi)
-
+        
+        self.initialize_fan(dmi)
+        
         # initialize list of devices
         self.devices = [
             Device(
@@ -531,8 +524,22 @@ class FanController:
             self.slow_loop_interval,
         )
 
+        self.initialize_log_file()
+
         # exit handler
         signal.signal(signal.SIGTERM, self.on_exit)
+
+    def initialize_fan(self, dmi: DmiId):
+        try:
+            fan_path = get_full_path(
+                self.base_hwmon_path, self.config["fan_hwmon_name"]
+            )
+        except FileNotFoundError:
+            fan_path = get_full_path(
+                self.base_hwmon_path, self.config["fan_hwmon_name_alt"]
+            )
+        finally:
+            self.fan = Fan(fan_path, self.config, dmi)
 
     def print_single(self, source_name):
         """pretty print all device values, temp source, and output"""
@@ -548,6 +555,19 @@ class FanController:
         )
         print(f"Fan[{source_name}]: {int(self.fan.fc_speed)}/{self.fan.measured_speed}")
 
+    def initialize_log_file(self):
+        try:
+            # Check if the log file already exists, if it does, rotate it
+            if self.LOG_FILE_PATH.exists():
+                self.LOG_FILE_PATH.rename(self.LOG_FILE_PATH.with_suffix('.old.log'))
+
+            self.log_file = open(self.LOG_FILE_PATH, "w", encoding="utf8", newline="")
+            self.log_writer = csv.writer(self.log_file, delimiter=",")
+            self.log_rows_buffer = []
+            self.log_header()
+        except Exception as e:
+            print(f'failed to initialize log file: {e}')
+
     def log_header(self):
         header = ["TIMESTAMP"]
         for device in self.devices:
@@ -559,7 +579,6 @@ class FanController:
         header.append(f"FAN_TARGET")
         header.append(f"FAN_REAL")
         self.log_writer.writerow(header)
-        self.unwritten_log_lines = 1
 
     def log_single(self, source_name):
         row = [int(time.time())]
@@ -571,11 +590,19 @@ class FanController:
         row.append(source_name)
         row.append(int(self.fan.fc_speed))
         row.append(self.fan.measured_speed)
-        self.log_writer.writerow(row)
-        self.unwritten_log_lines += 1
-        if self.unwritten_log_lines >= self.log_write_ratio:
+        self.log_rows_buffer.append(row)
+        self.flush_or_rotate_log_if_needed()
+    
+    def flush_or_rotate_log_if_needed(self):
+        if self.log_file.tell() >= self.LOG_FILE_MAX_SIZE:
+            print('Maximum size reached, rotating log')
+            self.log_writer.writerows(self.log_rows_buffer)
+            self.log_file.close()
+            self.initialize_log_file()
+        elif len(self.log_rows_buffer) >= self.log_write_ratio:
+            self.log_writer.writerows(self.log_rows_buffer)
             self.log_file.flush()
-            self.unwritten_log_lines = 0
+            self.log_rows_buffer = []
 
     def loop_read_sensors(self):
         """internal loop to measure device temps and sensor value"""
@@ -597,24 +624,7 @@ class FanController:
 
     def loop_control(self):
         """main control loop"""
-        # open log file
-        log_file_path = "/var/log/jupiter-fan-control.log"
-        old_log_file_path = "/var/log/jupiter-fan-control.old.log"
-
-        try:
-            # Check if the log file already exists, if it does, archive it
-            if os.path.exists(log_file_path):
-                if os.path.exists(old_log_file_path):
-                    os.remove(old_log_file_path)
-                os.rename(log_file_path, old_log_file_path)
-
-            self.log_file = open(log_file_path, "w", encoding="utf8", newline="")
-            # print(f'logging controller state to {log_file_path}')
-            self.log_writer = csv.writer(self.log_file, delimiter=",")
-            self.log_header()
-        except Exception as e:
-            print(f"unable to open log file {log_file_path} \n {e}")
-
+        
         print("jupiter-fan-control started successfully.")
         while True:
             fan_error = abs(self.fan.fc_speed - self.fan.get_speed())
