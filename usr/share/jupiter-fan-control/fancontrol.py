@@ -656,7 +656,8 @@ class FanController:
     def on_exit(self, signum, frame):
         """exit handler"""
         try:
-            self.log_file.flush()
+            if len(self.log_rows_buffer) > 0:
+                self.log_writer.writerows(self.log_rows_buffer)
             self.log_file.close()
             print("closed log file")
         except:
