@@ -4,7 +4,7 @@
 fast_loop_interval: 0.2
 slow_loop_interval: 1
 control_loop_ratio: 5
-log_write_ratio: 60
+log_write_ratio: 120
 base_hwmon_path: /sys/class/hwmon/
 charge_state_path: /sys/class/power_supply/BAT1/status
 
