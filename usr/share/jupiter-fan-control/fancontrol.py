@@ -483,7 +483,7 @@ def get_full_path(base_path, name) -> str:
 
 class FanController:
     """main FanController class"""
-    LOG_FILE_PATH = Path("/var/log/jupiter-fan-control.log")
+    LOG_FILE_PATH = "/var/log/jupiter-fan-control.log"
     LOG_FILE_MAX_SIZE = 2**20 
 
     def __init__(self, config_file, dmi: DmiId):
@@ -558,8 +558,10 @@ class FanController:
     def initialize_log_file(self):
         try:
             # Check if the log file already exists, if it does, rotate it
-            if self.LOG_FILE_PATH.exists():
-                self.LOG_FILE_PATH.rename(self.LOG_FILE_PATH.with_suffix('.old.log'))
+            old_log_file = Path(self.LOG_FILE_PATH)
+
+            if old_log_file.exists():
+                old_log_file.rename(old_log_file.with_suffix('.old.log'))
 
             self.log_file = open(self.LOG_FILE_PATH, "w", encoding="utf8", newline="")
             self.log_writer = csv.writer(self.log_file, delimiter=",")
