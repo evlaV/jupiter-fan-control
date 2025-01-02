@@ -157,8 +157,10 @@ class DmiId:
         self.board_name = self.read("board_name")
 
     def read(self, identifier):
-        with open(self.id / identifier, "r", encoding="utf-8") as file:
-            return file.read().strip()
+        try:
+            return open(self.id / identifier, "r", encoding="utf-8").read().strip()
+        except FileNotFoundError:
+            return None
 
 
 class Fan:
